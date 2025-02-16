@@ -1,0 +1,4 @@
+*.EXE
+chat.json
+node_modules
+tools/config.json
