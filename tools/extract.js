@@ -36,8 +36,11 @@ async function main() {
             let letters = 0;
             for (let li = idx; li < eIdx; li++) {
                 const c = fugger2[li];
-                if ((c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A))
+                if ((c >= 0x41 && c <= 0x5A) ||
+                    (c >= 0x61 && c <= 0x7A) ||
+                    c === 0x20 || c === 0x25 || c === 0x24) {
                     letters++;
+                }
             }
             if (letters >= 3 && (letters / (eIdx - idx)) >= 0.65)
                 isString = true;
