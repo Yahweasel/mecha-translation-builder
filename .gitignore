@@ -2,3 +2,5 @@
 chat.json
 node_modules
 tools/config.json
+handbuch/handbuch/*.png
+handbuch/handbuch/try*
