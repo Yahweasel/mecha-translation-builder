@@ -24,6 +24,8 @@ async function main() {
         await fs.readFile("strings.json", "utf8")
     );
 
+    strings.sort((a, b) => a.start - b.start);
+
     let translated = 0;
     let tooLong = 0, mismatch = 0;
     for (const string of strings) {

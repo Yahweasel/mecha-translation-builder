@@ -107,7 +107,7 @@ async function main() {
         // Save everything
         await fs.writeFile("chat.json.tmp", JSON.stringify(log, null, 2));
         await fs.rename("chat.json.tmp", "chat.json");
-        await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2));
+        await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2) + "\n");
         await fs.rename("strings.json.tmp", "strings.json");
 
         /*
