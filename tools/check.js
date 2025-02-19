@@ -19,6 +19,10 @@ const fs = require("fs/promises");
 
 const legacy = require("legacy-encoding");
 
+function specials(str, re) {
+    return (str.match(re) || []).join(",");
+}
+
 async function main() {
     const strings = JSON.parse(
         await fs.readFile("strings.json", "utf8")
@@ -55,11 +59,19 @@ async function main() {
         }
 
         // Check the specials
-        const deSpecials = (string.string.match(/[\$%][a-zA-Z0-9]/g)||[]).join(",");
-        const enSpecials = (en.match(/[\$%][a-zA-Z0-9]/g)||[]).join(",");
-        if (deSpecials !== enSpecials) {
+        const deSpecials = {
+            d: specials(string.string, /\$[a-zA-Z0-9]/g),
+            p: specials(string.string, /%[a-zA-Z0-9]/g),
+            a: specials(string.string, /[\$%][a-zA-Z0-9]/g)
+        };
+        const enSpecials = {
+            d: specials(en, /\$[a-zA-Z0-9]/g),
+            p: specials(en, /%[a-zA-Z0-9]/g),
+            a: specials(en, /[\$%][a-zA-Z0-9]/g)
+        };
+        if (deSpecials.d !== enSpecials.d || deSpecials.p !== enSpecials.p) {
             mismatch++;
-            string.WARN = `SPECIALS MISMATCH ${deSpecials} v. ${enSpecials}`;
+            string.WARN = `SPECIALS MISMATCH ${deSpecials.a} v. ${enSpecials.a}`;
             string.en2 = en;
             continue;
         }
@@ -71,7 +83,7 @@ async function main() {
         `Too long:\t${tooLong}\n` +
         `Specials:\t${mismatch}`);
 
-    await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2));
+    await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2) + "\n");
     await fs.rename("strings.json.tmp", "strings.json");
 }
 
