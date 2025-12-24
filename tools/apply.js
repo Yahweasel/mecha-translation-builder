@@ -20,7 +20,7 @@ const fs = require("fs/promises");
 const legacy = require("legacy-encoding");
 
 async function main() {
-    const fugger2 = await fs.readFile("FUGGER2.EXE");
+    const bin = await fs.readFile(process.argv[2]);
     const strings = JSON.parse(
         await fs.readFile("strings.json", "utf8")
     );
@@ -39,10 +39,10 @@ async function main() {
         }
 
         for (let i = 0; i < stringLen; i++)
-            fugger2[string.start + i] = enc[i] || 0;
+            bin[string.start + i] = enc[i] || 0;
     }
 
-    await fs.writeFile("FUGGEREN.EXE", fugger2);
+    await fs.writeFile(process.argv[3], bin);
 }
 
 main();

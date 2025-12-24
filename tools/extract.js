@@ -20,14 +20,14 @@ const fs = require("fs/promises");
 const legacy = require("legacy-encoding");
 
 async function main() {
-    const fugger2 = await fs.readFile("FUGGER2.EXE");
+    const bin = await fs.readFile(process.argv[2]);
     const strings = [];
-    for (let idx = 0; idx < fugger2.length; idx++) {
+    for (let idx = 0; idx < bin.length; idx++) {
         let eIdx = idx;
         for (;
-            fugger2[eIdx] >= 0x20 ||
-            fugger2[eIdx] === 0x0A ||
-            fugger2[eIdx] === 0x0D;
+            bin[eIdx] >= 0x20 ||
+            bin[eIdx] === 0x0A ||
+            bin[eIdx] === 0x0D;
             eIdx++) {}
 
         let isString = false;
@@ -35,7 +35,7 @@ async function main() {
             // Check whether a fair portion of them are actually letters
             let letters = 0;
             for (let li = idx; li < eIdx; li++) {
-                const c = fugger2[li];
+                const c = bin[li];
                 if ((c >= 0x41 && c <= 0x5A) ||
                     (c >= 0x61 && c <= 0x7A) ||
                     c === 0x20 || c === 0x25 || c === 0x24) {
@@ -47,7 +47,7 @@ async function main() {
         }
 
         if (isString) {
-            const ibm850 = fugger2.slice(idx, eIdx);
+            const ibm850 = bin.slice(idx, eIdx);
             const string = legacy.decode(ibm850, "ibm850");
             strings.push({
                 start: idx,
