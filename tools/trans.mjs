@@ -17,12 +17,11 @@
 
 import * as fs from "fs/promises";
 
-import OpenAI from "openai";
+import fetch from "node-fetch";
 
 import * as libCheck from "./lib-check.mjs";
 
 const config = JSON.parse(await fs.readFile("config.json", "utf8"));
-const openai = new OpenAI(config.openai);
 
 async function main() {
     const strings = JSON.parse(
@@ -38,6 +37,8 @@ async function main() {
     } catch (ex) {}
     const messages = log.messages;
     const req = {
+        seed: 1,
+        temperature: 0,
         messages
     };
     Object.assign(req, config.openaiCompletion || {});
@@ -46,15 +47,35 @@ async function main() {
     if (messages.length === 0) {
         messages.push({
             role: "user",
-            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English. Include only the translation in your messages, no other context.${config.suffix||""} If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with “ERROR”. Do you understand?`
+            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English.${config.suffix||""} If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with \`{"string": "ERROR"}\`. Do you understand?`
         });
-        const completion = await openai.chat.completions.create(req);
+        const f = await fetch(`${config.openai.host}/v1/chat/completions`, {
+            method: "POST",
+            headers: {"content-type": "application/json"},
+            body: JSON.stringify(req)
+        });
+        const completion = await f.json();
         messages.push(completion.choices[0].message);
         log.tokens = [
             completion.usage.prompt_tokens,
             completion.usage.completion_tokens
         ];
     }
+
+    // Force correct response format
+    req.response_format = {
+        type: "json_schema",
+        json_schema: {
+            schema: {
+                type: "object",
+                properties: {
+                    string: {type: "string"}
+                },
+                required: ["string"]
+            },
+            strict: true
+        }
+    };
 
     let times = [];
 
@@ -63,7 +84,7 @@ async function main() {
     // Go through the strings
     for (let si = 0; si < strings.length; si++) {
         const string = strings[si];
-        if (string.en) {
+        if (typeof string.en === "string") {
             // Already translated
             continue;
         }
@@ -80,8 +101,7 @@ async function main() {
             }
         }
 
-        const orig = string.string
-            .replace(/\x1b(.)/g, "(%$1)");
+        const orig = JSON.stringify({string: string.string});
 
         // Now add this line
         messages.push({
@@ -97,20 +117,36 @@ async function main() {
                 messages.slice(0, 2),
                 messages.slice(-1)
             );
+        } else {
+            req.messages = req.messages.slice(0);
         }
+        req.n_predict = orig.length * 12;
 
         // And translate
         let completion, enRaw, en;
         for (let tries = 0; tries < 16; tries++) {
-            req.seed = 1 + tries;
-            completion = await openai.chat.completions.create(req);
+            const f = await fetch(`${config.openai.host}/v1/chat/completions`, {
+                method: "POST",
+                headers: {"content-type": "application/json"},
+                body: JSON.stringify(req)
+            });
+            completion = await f.json();
             enRaw = completion.choices[0].message.content;
-            en = enRaw
-                .replace(/\(%(.)\)/g, "\x1b$1");
+            en = JSON.parse(enRaw).string;
             string.enRaw = enRaw;
             string.en = en;
-            if (libCheck.check(string, config) !== "SPECIALS")
+
+            const error = libCheck.check(string, config);
+            if (error === null || error.warn === "LENGTH")
                 break;
+
+            // Let it fix its mistake
+            req.messages.push(completion.choices[0].message);
+            req.messages.push({
+                role: "user",
+                content: error.msg
+            });
+            console.log(`\n${orig}\n =>\n${enRaw}\n${error.warn}`);
         }
 
         console.log(`\n${orig}\n =>\n${enRaw}`);

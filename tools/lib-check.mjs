@@ -16,6 +16,9 @@
 
 import * as legacy from "legacy-encoding";
 
+export const specialsRe =
+    /(\u001b.|[\u0000-\u0008\u000b\u000c\u000e-\u001f]|%.)/g;
+
 export function specials(str, re) {
     return (str.match(re) || []).join(",");
 }
@@ -36,26 +39,48 @@ export function check(string, config) {
         en.replace(/’/g, "'"), encoding
     );
 
+    // Check if it's untranslated
+    if (/\p{Lo}/u.test(en)) {
+        return {
+            warn: "UNTRANSLATED",
+            msg: "I need a fully English string. Give me the English translation."
+        };
+    }
+
     // Check the specials
-    //const origSpecials = specials(string.string, /[\x1b%]./g);
-    //const enSpecials = specials(en, /[\x1b%]./g);
-    const origSpecials = specials(string.string, /%./g);
-    const enSpecials = specials(en, /%./g);
-    if (origSpecials !== enSpecials)
-        return "SPECIALS";
+    const origSpecials = specials(string.string, specialsRe);
+    const enSpecials = specials(en, specialsRe);
+    if (origSpecials !== enSpecials) {
+        return {
+            warn: "SPECIALS",
+            msg: `The special sequences in your translation are incorrect. The exact same sequence of special sequences must be in your translation, even if that makes the translation awkward.\n\nSpecial sequences in the original string: ${JSON.stringify(origSpecials)}.\nSpecial sequences in your string: ${JSON.stringify(enSpecials)}.\n\nProvide a correct translation with the special sequences intact.`
+        };
+    }
 
     // Check encodability
     const thruEnc = legacy.decode(legacy.encode(en, encoding), encoding);
-    if (thruEnc !== en)
-        return "UNENCODEABLE";
+    if (thruEnc !== en) {
+        let i;
+        let bad = null;
+        for (i = 0; i < en.length; i++) {
+            if (en[i] !== thruEnc[i]) {
+                bad = en[i];
+                break;
+            }
+        }
+        return {
+            warn: "UNENCODEABLE",
+            msg: `The character ${JSON.stringify(bad)} is not encodeable in this system. Rephrase to avoid it.`
+        };
+    }
 
     // Check if it even fits
-    if (enc.length > stringLen)
-        return "LENGTH";
-
-    // Check if it's untranslated
-    if (/\p{Lo}/u.test(en))
-        return "UNTRANSLATED";
+    if (enc.length > stringLen) {
+        return {
+            warn: "LENGTH",
+            msg: "Too long. Shorten and/or abbreviate."
+        };
+    }
 
     return null;
 }

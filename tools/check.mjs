@@ -23,34 +23,6 @@ import * as libCheck from "./lib-check.mjs";
 
 const config = JSON.parse(await fs.readFile("config.json", "utf8"));
 
-function specials(str, re) {
-    return (str.match(re) || []).join(",");
-}
-
-// ABCDEGHIKLMOPSTU
-const CMAP = {
-    0: "A",
-    1: "B",
-    2: "C",
-    3: "D",
-    4: "E",
-    5: "H",
-    6: "I",
-    7: "K",
-    8: "L",
-    9: "M",
-    "a": "O",
-    "b": "P",
-    "c": "S",
-    "d": "T",
-    "e": "U",
-    "f": "Z"
-};
-
-function encodeUID(uid) {
-    return uid.toString(16).split("").map(x => CMAP[x]).join("");
-}
-
 async function main() {
     const encodings = config.encoding;
     const defaultEncoding =
@@ -76,9 +48,8 @@ async function main() {
         return 0;
     });
 
-    let uid = 0;
     let translated = 0;
-    let tooLong = 0, mismatch = 0, unenc = 0, untr = 0, overlap = 0;
+    let bad = 0, tooLong = 0, mismatch = 0, unenc = 0, untr = 0, overlap = 0;
     let prev = null;
     for (const string of strings) {
         if (!string.en)
@@ -89,11 +60,12 @@ async function main() {
 
         if (string.WARN) {
             delete string.WARN;
-            delete string.uid;
             delete string.enx;
         }
 
+        // Check for overlaps
         if (prev && prev.file === string.file && string.start < prev.end) {
+            bad++;
             overlap++;
             string.WARN = "OVERLAP";
             continue;
@@ -101,87 +73,72 @@ async function main() {
         prev = string;
 
         const en = string.en2 || string.en;
-        if (en.trim() === "ERROR")
+
+        const warn = libCheck.check(string, config);
+        if (warn === null)
             continue;
-        const enc = legacy.encode(
-            en.replace(/’/g, "'"), encoding
-        );
+        bad++;
+        string.WARN = warn;
+        if (!string.en2)
+            string.en2 = string.en;
 
-        // Check the specials
-        //const origSpecials = specials(string.string, /[\x1b%]./g);
-        //const enSpecials = specials(en, /[\x1b%]./g);
-        const origSpecials = specials(string.string, /%./g);
-        const enSpecials = specials(en, /%./g);
-        if (origSpecials !== enSpecials) {
-            mismatch++;
-            if (!string.en2)
-                string.en2 = string.en;
-            string.WARN = `SPECIALS MISMATCH ${origSpecials} v. ${enSpecials}`;
-            continue;
-        }
+        // Give more info
+        switch (warn.warn) {
+            case "UNTRANSLATED":
+                untr++;
+                break;
 
-        // Check encodability
-        const thruEnc = legacy.decode(legacy.encode(en, encoding), encoding);
-        if (thruEnc !== en) {
-            unenc++;
-            if (!string.en2)
-                string.en2 = string.en;
-            string.WARN = `UNENCODABLE: ${thruEnc} v. ${en}`
-            continue;
-        }
-
-        // Check if it even fits
-        if (enc.length > stringLen) {
-            tooLong++;
-            if (!string.en2)
-                string.en2 = string.en;
-            string.WARN = "TRUNCATED";
-            let uidStr = `#${encodeUID(uid)}#`;
-            string.uid = uid;
-            uid++;
-            if (!config.useUIDs)
-                uidStr = "";
-
-            const enc2 = legacy.encode(uidStr, encoding);
-            const enc3 = legacy.encode("#", encoding);
-            const enc4 = Buffer.concat([
-                enc2,
-                enc.slice(0, stringLen - enc2.length - enc3.length),
-                enc3
-            ]);
-
-            if (enc4.length > stringLen) {
-                //string.enx = string.string;
-                string.enx = legacy.decode(enc4.slice(0, stringLen), encoding);
-            } else {
-                string.enx = legacy.decode(enc4, encoding);
+            case "SPECIALS":
+            {
+                mismatch++;
+                const origSpecials = libCheck.specials(string.string, libCheck.specialsRe);
+                const enSpecials = libCheck.specials(en, libCheck.specialsRe);
+                string.WARN = `SPECIALS MISMATCH ${JSON.stringify(origSpecials)} v. ${JSON.stringify(enSpecials)}`;
+                break;
             }
-            continue;
-        }
 
-        // And finally, check if it seems untranslated
-        if (/\p{Lo}/u.test(en)) {
-            untr++;
-            if (!string.en2)
-                string.en2 = string.en;
-            string.WARN = "UNTRANSLATED";
-            continue;
-        }
+            case "UNENCODEABLE":
+            {
+                unenc++;
+                const thruEnc = legacy.decode(legacy.encode(en, encoding), encoding);
+                string.WARN = `UNENCODABLE: ${thruEnc} v. ${en}`
+                break;
+            }
 
+            case "LENGTH":
+            {
+                tooLong++;
+
+                const enc = legacy.encode(
+                    en.replace(/’/g, "'"), encoding
+                );
+
+                const suffix = legacy.encode("#", encoding);
+                const enc2 = Buffer.concat([
+                    enc.slice(0, stringLen - suffix.length),
+                    suffix
+                ]);
+                string.enx = legacy.decode(enc2, encoding);
+
+                break;
+            }
+        }
     }
 
     console.log(
         `Total:\t${strings.length}\n` +
         `Translated:\t${translated}\n` +
-        `Too long:\t${tooLong}\n` +
+        `Overlapping:\t${overlap}\n` +
+        `Untranslated:\t${untr}\n` +
         `Specials:\t${mismatch}\n` +
         `Unencodable:\t${unenc}\n` +
-        `Untranslated:\t${untr}\n` +
-        `Overlapping:\t${overlap}\n`
+        `Too long:\t${tooLong}\n`
     );
 
     await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2) + "\n");
     await fs.rename("strings.json.tmp", "strings.json");
+
+    process.exit(bad ? 1 : 0);
 }
 
 main();

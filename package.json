@@ -1,9 +1,12 @@
 {
   "dependencies": {
+    "iconv-lite": "^0.7.2",
     "legacy-encoding": "^3.0.0",
+    "node-fetch": "^3.3.2",
     "openai": "^4.85.1",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.3",
     "typescript": "^5.7.3",
-    "typescript-language-server": "^4.3.3"
+    "typescript-language-server": "^4.3.3",
+    "unicode-properties": "^1.4.1"
   }
 }

@@ -1,3 +1,42 @@
 {
-    "openai": ""
+    "//EXTRACTION": "Parameters related to extracting strings",
+    "//files": "Files to search for strings.",
+    "files": [
+        "Message.rb2",
+        "SceDat1.rb2",
+        "SceDat2.rb2",
+        "RB2.exe"
+    ],
+
+    "//encoding": "Text encoding to search for. Use a Windows codepage for Windows software, a DOS codepage for DOS software, or a standard encoding for other situations. This can be an array if the program uses multiple encodings. If different *files* use different encodings, you'll have to use different configs.",
+    "encoding": "932",
+    "//language": "In practice this is only used in AI prompts, so just use the human name of the language.",
+    "language": "Japanese",
+    "//letters": "SEMI-OPTIONAL. This defines the Unicode categories and scripts that will be considered as letters, as part of the heuristic to search for strings. If unset, Latin will be assumed (i.e., this must be set for languages that don't use the Latin alphabet).",
+    "letters": {
+        "categories": ["Lo"],
+        "scripts": ["Han", "Hiragana", "Katakana"]
+    },
+    "//start, end": "Optional arrays of symbols or Unicode categories that are allowed to start/end a string, to help limit the heuristic.",
+    "start": ["Lo", "「", "『", "\u001b"],
+    "end": ["Lo", "」", "』", "、", "…", "。", "〜", "!", "?"],
+
+    "//TRANSLATION": "Parameters related to LLM translation",
+    "//openai": "Parameters for connecting to the AI server. This is only really configured for local AI.",
+    "openai": {
+        "host": "http://localhost:8000"
+    },
+    "//openaiCompletion": "Parameters for the actual requests to the AI. These are sent directly to /v1/chat/completions.",
+    "openaiCompletion": {
+        "seed": 1,
+        "model": "qwen3-235b-instruct",
+        "chat_template_kwargs": {"enable_thinking": false},
+        "thinking_budget_tokens": 0
+    },
+    "//suffix": "Extra commands to add to the translation request. Try to handle special cases both in the language and in the particular game. The translation process will likely take a few goes while you work this out. I recommend using a smaller/faster AI model until you're confident, then a larger/slower one.",
+    "suffix": "If there are newlines in the original, try to put newlines in the same places in the translation. As these strings are from code, they may contain special sequences of the forms %@xx, %d, \\u001bx, \\u0001, etc.; leave these sequences intact, in the same location in the string. This game uses a lot of half-width kana, so if you find Katakana strings that would normally be Hiragana (e.g., ﾜﾀｼ), translate them as Japanese, not as loan words that happen to look like Japanese (so in this case, this is “I” or “me”).",
+
+    "//APPLY": "Parameters relating to how strings are applied back into the program.",
+    "//spaceEnd": "When re-inserting a string, it will usually be null-terminated if shorter than the original string. Set this to true to instead fill the end with spaces. Or, this can be set to an array of encodings, to only fill with spaces when the given encodings are used.",
+    "spaceEnd": ["ucs2"]
 }

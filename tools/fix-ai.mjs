@@ -17,23 +17,17 @@
 
 import * as fs from "fs/promises";
 
+import fetch from "node-fetch";
 import * as legacy from "legacy-encoding";
-import OpenAI from "openai";
 
 import * as libCheck from "./lib-check.mjs";
 
 const config = JSON.parse(await fs.readFile("config.json", "utf8"));
-const openai = new OpenAI(config.openai);
 
 const MAX_RETRIES = 16;
+const TEMPERATURE = +process.argv[2] || 0;
 
 async function main() {
-    const encodings = config.encoding;
-    const defaultEncoding =
-        (encodings instanceof Array)
-            ? encodings[0]
-            : encodings;
-
     const strings = JSON.parse(
         await fs.readFile("strings.json", "utf8")
     );
@@ -41,17 +35,39 @@ async function main() {
     let messages = [
         {
             role: "user",
-            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English. Include only the translation in your messages, no other context.${config.suffix||""} If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with “ERROR”. Because the strings are going to be replaced in the binary, your translations need to be short enough to be encoded in the same space; if a translation is too long, I'll request that you make it shorter. Do you understand?`
+            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English. Include only the translation in your messages, no other context.${config.suffix||""} If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with \`{"string": "ERROR"}\`. Because the strings are going to be replaced in the binary, your translations need to be short enough to be encoded in the same space; if a translation is too long, I'll request that you make it shorter. Do you understand?`
         }
     ];
-    const req = {messages};
+    const req = {
+        messages,
+        seed: 1,
+        temperature: TEMPERATURE
+    };
     Object.assign(req, config.openaiCompletion || {});
     {
-        const completion = await openai.chat.completions.create(req);
+        const f = await fetch(`${config.openai.host}/v1/chat/completions`, {
+            method: "POST",
+            headers: {"content-type": "application/json"},
+            body: JSON.stringify(req)
+        });
+        const completion = await f.json();
         messages.push(completion.choices[0].message);
     }
 
     let times = [];
+    req.response_format = {
+        type: "json_schema",
+        json_schema: {
+            schema: {
+                type: "object",
+                properties: {
+                    string: {type: "string"}
+                },
+                required: ["string"]
+            },
+            strict: true
+        }
+    };
 
     for (let si = 0; si < strings.length; si++) {
         const string = strings[si];
@@ -66,48 +82,32 @@ async function main() {
         if (encoding instanceof Array)
             encoding = encoding[0];
 
-        const en = string.en2 || string.en;
-        console.log(`\n${en}`);
+        let en = string.en2 || string.en;
+        console.log(`\n${JSON.stringify(en)}`);
 
         messages = req.messages = messages.slice(0, 2);
         messages.push({
             role: "user",
-            content: string.string.replace(/\x1b(.)/g, "(%$1)")
+            content: JSON.stringify({string: string.string})
         }, {
             role: "assistant",
-            content: en
+            content: JSON.stringify({string: en})
         });
 
         let i;
         for (i = 0; i < MAX_RETRIES; i++) {
+            en = string.en2 || string.en;
             const error = await libCheck.check(string, config);
             if (!error)
                 break;
 
             console.log(error);
 
-            if (error === "SPECIALS") {
-                /*
-                const origSpecials =
-                    libCheck.specials(string.string, /[\x1b%]./g)
-                    .replace(/\x1b(.)/g, "(%$1)");
-                const enSpecials =
-                    libCheck.specials(en, /[\x1b%]./g)
-                    .replace(/\x1b(.)/g, "(%$1)");
-                */
-                const origSpecials = libCheck.specials(string.string, /%./g);
-                const enSpecials = libCheck.specials(en, /%./g);
-
-                messages.push({
-                    role: "user",
-                    content: `The special sequences in your translation are incorrect. The exact same sequence of special sequences must be in your translation, even if that makes the translation awkward. Special sequeences in the original string: "${origSpecials}". Special sequences in your string: "${enSpecials}". Provide a corrected translation with the special sequences intact.`
-                });
-
-            } else if (error === "LENGTH") {
+            if (error.warn === "LENGTH") {
                 if (messages.length <= 4) {
                     messages.push({
                         role: "user",
-                        content: "Too long. Shorten and/or abbreviate."
+                        content: error.msg
                     });
                 } else {
                     messages.push({
@@ -116,58 +116,36 @@ async function main() {
                     });
                 }
 
-            } else if (error === "UNTRANSLATED") {
-                if (i === 0) {
-                    // It didn't cause this
-                    break;
-                }
-
+            } else {
                 messages.push({
                     role: "user",
-                    content: "I need a fully English string. Give me the English translation."
+                    content: error.msg
                 });
-
-            } else if (error === "UNENCODEABLE") {
-                const en = string.en2 || string.en;
-                const thruEnc = legacy.decode(legacy.encode(en, encoding), encoding);
-                let i;
-                for (i = 0; i < en.length; i++) {
-                    if (en[i] !== thruEnc[i]) {
-                        messages.push({
-                            role: "user",
-                            content: `Unfortunately the character ‘${en[i]}’ is not encodeable. Please rephrase to avoid it.`
-                        });
-                        break;
-                    }
-                }
-                if (i === en.length) {
-                    console.error(en);
-                    console.error(thruEnc);
-                    process.exit(1);
-                }
-
-            } else {
-                break;
 
             }
 
-            req.n_predict = en.length * 6;
-            const completion = await openai.chat.completions.create(req);
-            const ret = completion.choices[0].message;
+            //req.n_predict = en.length * 6;
+            let completion;
+            {
+                const f = await fetch(`${config.openai.host}/v1/chat/completions`, {
+                    method: "POST",
+                    headers: {"content-type": "application/json"},
+                    body: JSON.stringify(req)
+                });
+                completion = await f.json();
+            }
+            let ret = completion.choices[0].message;
             messages.push(ret);
-            string.en2 = ret.content
-                .replace(/\(%(.)\)/g, "\x1b$1")
+            ret = JSON.parse(ret.content);
+            string.en2 = ret.string
                 .replace(/  */g, " ")
-                .replace(/  *\n/g, "\n");
-            console.log(`=> ${string.en2}`);
+                .replace(/  *\n/g, "\n")
+                .replace(/  *\r\n/g, "\r\n");
+            console.log(`=> ${JSON.stringify(string.en2)}`);
         }
 
-        if (i >= MAX_RETRIES) {
-            if (string.en === en)
-                delete string.en2;
-            else
-                string.en2 = en;
-        }
+        if (i >= MAX_RETRIES)
+            delete string.en2;
 
         if (i > 0) {
             await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2) + "\n");

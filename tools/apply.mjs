@@ -56,7 +56,7 @@ async function main() {
             continue;
         const stringLen = string.end - string.start;
 
-        const en = string.enx || string.en2 || string.en;
+        const en = string.en2 || string.en;
 
         if (en.trim() === "ERROR")
             continue;
