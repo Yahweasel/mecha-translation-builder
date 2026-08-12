@@ -47,7 +47,7 @@ async function main() {
     if (messages.length === 0) {
         messages.push({
             role: "user",
-            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English.${config.suffix||""} If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with \`{"string": "ERROR"}\`. Do you understand?`
+            content: `I am going to give you a sequence of ${config.language} strings from a video game. Please translate them into English.${config.suffix||""}${config.noError?"":'If a given string seems to be gibberish, it may have been extracted incorrectly; in that case, respond with `{"string": "ERROR"}\.'} Do you understand?`
         });
         const f = await fetch(`${config.openai.host}/v1/chat/completions`, {
             method: "POST",
@@ -136,17 +136,22 @@ async function main() {
             string.enRaw = enRaw;
             string.en = en;
 
-            const error = libCheck.check(string, config);
-            if (error === null || error.warn === "LENGTH")
-                break;
+            try {
+                const error = libCheck.check(string, config);
+                if (error === null || error.warn === "LENGTH")
+                    break;
 
-            // Let it fix its mistake
-            req.messages.push(completion.choices[0].message);
-            req.messages.push({
-                role: "user",
-                content: error.msg
-            });
-            console.log(`\n${orig}\n =>\n${enRaw}\n${error.warn}`);
+                // Let it fix its mistake
+                req.messages.push(completion.choices[0].message);
+                req.messages.push({
+                    role: "user",
+                    content: error.msg
+                });
+                console.log(`\n${orig}\n =>\n${enRaw}\n${error.warn}`);
+
+            } catch (_) {
+                break;
+            }
         }
 
         console.log(`\n${orig}\n =>\n${enRaw}`);

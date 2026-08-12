@@ -1,0 +1,35 @@
+{
+    "//OCR: "Parameters related to OCR'ing strings",
+    "//easyocr": "Parameters used by https://www.jaided.ai/easyocr/",
+    "easyocr": {
+        "//languages": "Languages to search for, as an array of language codes.",
+        "languages": ["ja", "en"]
+    },
+    "//font": "Font file used for reconstituting the PDF",
+    "font": "OpenSans-Regular.ttf",
+
+    "//openaiCompletionOCR": "EasyOCR (above) is only used for text segmentation. A VLM is used for OCR. These are the parameters for that, along with the 'openai' group below.",
+    "openaiCompletionOCR": {
+        "model": "glmocr",
+        "temperature": 0
+    },
+
+    "//TRANSLATION": "Parameters related to LLM translation",
+    "//language": "In practice this is only used in AI prompts, so just use the human name of the language.",
+    "language": "Japanese",
+    "//openai": "Parameters for connecting to the AI server. This is only really configured for local AI.",
+    "openai": {
+        "host": "http://renderbox2.local:8000"
+    },
+
+    "//openaiCompletion": "Parameters for the actual requests to the AI. These are sent directly to /v1/chat/completions.",
+    "openaiCompletion": {
+        "seed": 1,
+        "model": "qwen3-235b-instruct",
+        "chat_template_kwargs": {"enable_thinking": false},
+        "thinking_budget_tokens": 0
+    },
+
+    "//suffix": "Extra commands to add to the translation request.",
+    "suffix": " These strings are from the manual."
+}
