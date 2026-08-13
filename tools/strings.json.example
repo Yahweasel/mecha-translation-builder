@@ -1,0 +1,31 @@
+[
+  "//This is a quick explanation of the format of strings.json. The main file is an array of objects, each of which represents a single string.",
+  {
+    "//file": "OPTIONAL. If present, the file this string appears in. If there's only a single file, this can be left out.",
+    "file": "Message.rb2",
+
+    "//start": "First byte of the string within the file",
+    "start": 20867,
+
+    "//end": "First byte after the end of the string within the file",
+    "end": 20900,
+
+    "//raw": "The raw bytes from the original file, undecoded. In theory this shouldn't be necessary, but it's present for validation or debugging. The format of this string is the format of `btoa`.",
+    "raw": "\u0091æ\u0082P\u0095\u0094\u0091àÆ\u0095º¶Þ²Ï¾Ý\n\u0095º¦\u008a\u0084Ø\u0093\u0096ÃÃ¸ÀÞ»²",
+
+    "//string": "The original, untranslated string, in Unicode (i.e., decoded).",
+    "string": "第１部隊ﾆ兵ｶﾞｲﾏｾﾝ\n兵ｦ割ﾘ当ﾃﾃｸﾀﾞｻｲ",
+
+    "//enRaw": "The raw translation given back by the AI, complete with the surrounding JSON data. In theory this shouldn't be necessary, but it's present for debugging.",
+    "enRaw": "{\"string\":\"There are no troops in the 1st unit.\\nPlease assign some troops.\"}",
+
+    "//en": "The English translation, unencoded but otherwise ready to be inserted into the binary. If this is 'ERROR', the translation won't be used.",
+    "en": "There are no troops in the 1st unit.\nPlease assign some troops.",
+
+    "//en2": "OPTIONAL. If present, translation override. Used when there was a problem with the original translation, e.g. it was too long or wasn't fully translated. Of course, the translation in 'en' could simply be replaced instead.",
+
+    "//WARN": "Set by check.mjs if there was anything wrong with this string.",
+
+    "//enx": "Sometimes set by check.mjs to demonstrate the problem in WARN, e.g., if the text is too long, then 'enx' is set to the truncated text."
+  }
+]
