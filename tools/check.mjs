@@ -52,10 +52,7 @@ async function main() {
     let bad = 0, tooLong = 0, mismatch = 0, unenc = 0, untr = 0, overlap = 0;
     let prev = null;
     for (const string of strings) {
-        if (!string.en)
-            continue;
         const encoding = string.enc || defaultEncoding;
-        translated++;
         const stringLen = string.end - string.start;
 
         if (string.WARN) {
@@ -72,6 +69,9 @@ async function main() {
         }
         prev = string;
 
+        if (!string.en)
+            continue;
+        translated++;
         const en = string.en2 || string.en;
 
         const warn = libCheck.check(string, config);
@@ -128,11 +128,12 @@ async function main() {
     console.log(
         `Total:\t${strings.length}\n` +
         `Translated:\t${translated}\n` +
-        `Overlapping:\t${overlap}\n` +
-        `Untranslated:\t${untr}\n` +
-        `Specials:\t${mismatch}\n` +
-        `Unencodable:\t${unenc}\n` +
-        `Too long:\t${tooLong}\n`
+        `Problems:\t${bad}\n` +
+        `\tOverlapping:\t${overlap}\n` +
+        `\tUntranslated:\t${untr}\n` +
+        `\tSpecials:\t${mismatch}\n` +
+        `\tUnencodable:\t${unenc}\n` +
+        `\tToo long:\t${tooLong}\n`
     );
 
     await fs.writeFile("strings.json.tmp", JSON.stringify(strings, null, 2) + "\n");
